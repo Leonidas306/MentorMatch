@@ -1,10 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/**
- * Catálogo oficial de las 6 categorías principales de MentorMatch con su metadato visual
- * y conteo en vivo de mentores que imparten materias en cada área.
- */
 function obtener_categorias_con_conteo(): array
 {
     $definiciones = [

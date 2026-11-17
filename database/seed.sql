@@ -1,6 +1,4 @@
--- Datos Semilla de Demostración — Proyecto 06: MentorMatch (Abierto a todo público, sin datos personales reales)
--- Contraseña común de cuentas demo: demo1234
--- Categorías (area) estandarizadas: 'Ciencia', 'Matemáticas', 'Tecnología y Código', 'Diseño y Creatividad', 'Negocios y Finanzas', 'Idiomas'
+-- Datos mock
 
 INSERT INTO usuarios (id, nombre, correo, ocupacion, experiencia, rol, biografia, modalidad, ubicacion, calificacion_promedio, password_hash) VALUES
 (1, 'Alejandro Morales', 'alejandro.morales@mentormatch.demo', 'Desarrollador Full-Stack & Instructor de Algoritmos', '5 años de experiencia', 'ambos', 'Apasionado por enseñar programación desde cero, estructuras de datos y matemáticas aplicadas con ejercicios prácticos.', 'Ambas', 'Ciudad de México / Online', 4.9, '__DEMO_HASH__'),

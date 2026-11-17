@@ -1,10 +1,8 @@
--- Esquema oficial de Base de Datos — Proyecto 06: MentorMatch
--- Red abierta de asesorías e intercambio de habilidades
--- Motor: SQLite 3 (vía PHP PDO)
+
 
 PRAGMA foreign_keys = ON;
 
--- 1. Tabla de Usuarios (Cualquier persona puede asumir rol de aprendiz/estudiante, mentor o ambos)
+-- 1. Tabla de Usuarios 
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre TEXT NOT NULL,
@@ -20,7 +18,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     creado_en TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
--- 2. Tabla de Habilidades / Materias que domina cada mentor
+-- 2. Tabla de Habilidades 
 CREATE TABLE IF NOT EXISTS habilidades (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     usuario_id INTEGER NOT NULL,
@@ -31,7 +29,7 @@ CREATE TABLE IF NOT EXISTS habilidades (
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 );
 
--- 3. Tabla de Disponibilidades (Espacios publicados por cada mentor)
+-- 3. Tabla de Disponibilidades 
 CREATE TABLE IF NOT EXISTS disponibilidades (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     mentor_id INTEGER NOT NULL,
@@ -44,7 +42,7 @@ CREATE TABLE IF NOT EXISTS disponibilidades (
     FOREIGN KEY (mentor_id) REFERENCES usuarios(id) ON DELETE CASCADE
 );
 
--- 4. Tabla de Solicitudes de Asesoría
+-- 4. Solicitudes de Asesoría
 CREATE TABLE IF NOT EXISTS solicitudes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     estudiante_id INTEGER NOT NULL,
@@ -65,7 +63,7 @@ CREATE TABLE IF NOT EXISTS solicitudes (
     FOREIGN KEY (disponibilidad_id) REFERENCES disponibilidades(id) ON DELETE SET NULL
 );
 
--- 5. Tabla de Sesiones Confirmadas e Historial
+-- 5. Sesiones Confirmadas e Historial
 CREATE TABLE IF NOT EXISTS sesiones (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     solicitud_id INTEGER NOT NULL UNIQUE,
