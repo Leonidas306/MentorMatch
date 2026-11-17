@@ -13,9 +13,6 @@ $mentores = buscar_mentores($busqueda, $materiaSeleccionada, $modalidadSeleccion
 $estadisticas = obtener_estadisticas_sistema();
 $usuario = usuario_actual();
 
-/**
- * Devuelve el icono SVG lineal minimalista (estilo Superprof) para cada categoría.
- */
 function icono_categoria_svg(string $icono): string
 {
     return match ($icono) {
