@@ -42,7 +42,6 @@ render_header('Iniciar Sesión y Registro', 'login');
 
 <section class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        <!-- Columna lado izquierdo: Formulario de Login / Registro -->
         <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-xs p-6 sm:p-8">
             <div class="flex items-center gap-2 border-b border-slate-200 pb-4 mb-6">
                 <a
@@ -172,7 +171,6 @@ render_header('Iniciar Sesión y Registro', 'login');
             <?php endif; ?>
         </div>
 
-        <!-- Columna lado derecho: Cuentas Demo para validación -->
         <div class="lg:col-span-5 bg-slate-900 text-white rounded-2xl p-6 sm:p-7 border border-slate-800 space-y-4">
             <div class="inline-block px-2.5 py-1 rounded-md bg-amber-400/20 text-amber-300 text-xs font-bold">
                 🔑 Acceso Rápido para Demostración
