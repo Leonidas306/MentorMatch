@@ -1,4 +1,4 @@
-# 📋 Historias de Usuario, Estados de Sesión y Modelo de Datos — MentorMatch
+# Historias de Usuario, Estados de Sesión y Modelo de Datos — MentorMatch
 
 Documento técnico correspondiente a la **Revisión 1 (19 de noviembre de 2026)** del **Proyecto 06 — MentorMatch** (Red abierta de asesorías e intercambio de habilidades).
 

@@ -10,7 +10,6 @@ render_header('Agenda y Estados de Sesión', 'agenda');
 ?>
 
 <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-    <!-- Encabezado y selector de vista -->
     <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
             <span class="text-xs font-bold uppercase tracking-wider text-indigo-700">Requisito Revisión 1 · Modelo de Estados</span>
@@ -38,7 +37,6 @@ render_header('Agenda y Estados de Sesión', 'agenda');
         <?php endif; ?>
     </div>
 
-    <!-- Tarjetas explicativas de los Estados de una Sesión -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="bg-white rounded-2xl p-4 border border-amber-200 shadow-2xs">
             <span class="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-xs font-extrabold uppercase">1. Pendiente</span>
@@ -66,7 +64,6 @@ render_header('Agenda y Estados de Sesión', 'agenda');
         </div>
     </div>
 
-    <!-- Tabla de Solicitudes y Sesiones Registradas en Semilla -->
     <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div class="p-5 border-b border-slate-200 flex items-center justify-between">
             <h2 class="text-base font-extrabold text-slate-900">

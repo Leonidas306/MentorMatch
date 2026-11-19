@@ -1,9 +1,7 @@
 <?php
 declare(strict_types=1);
 
-/**
- * Devuelve el arreglo del usuario autenticado en la sesión actual o null si es visitante
- */
+
 function usuario_actual(): ?array
 {
     if (empty($_SESSION['usuario_id'])) {
@@ -28,9 +26,7 @@ function usuario_actual(): ?array
     return $cachedUser;
 }
 
-/**
- * Autentica al usuario por su correo y contraseña
- */
+
 function iniciar_sesion_usuario(string $correo, string $password): array
 {
     $correoLimpio = strtolower(trim($correo));

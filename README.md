@@ -1,4 +1,4 @@
-# 🌐 Proyecto 06 — MentorMatch · Red de Asesorías e Intercambio de Habilidades
+# Proyecto 06 — MentorMatch · Red de Asesorías e Intercambio de Habilidades
 
 Aplicación web desarrollada para la materia de **Aplicaciones de Internet (2026)**. **MentorMatch** es una plataforma abierta a todo el público donde cualquier persona (estudiante, profesional o autodidacta) puede ofrecer o solicitar asesorías organizadas en **6 grandes categorías** (*Ciencia*, *Matemáticas*, *Tecnología y Código*, *Diseño y Creatividad*, *Negocios y Finanzas* e *Idiomas*).
 
@@ -67,8 +67,8 @@ En la pantalla de **Iniciar Sesión** (`http://127.0.0.1:8000/login.php`) puedes
 
 | Integrante | Rol / Módulo Asignado | Rama `feature/*` (Revisión 1) |
 | :--- | :--- | :--- |
-| **Integrante 1** | Líder de Repositorio, Configuración Base (`bootstrap.php`) y Documentación | `feature/e1-config-y-documentacion` |
-| **Integrante 2** | Esquema SQLite (`schema.sql`), Datos Semilla (`seed.sql`) y Repositorio PDO (`repository.php`) | `feature/e1-modelo-datos-y-semilla` |
-| **Integrante 3** | Autenticación con Rol Dual (`auth.php`, `login.php`, `logout.php`) y Layout Responsivo (`layout.php`) | `feature/e1-auth-y-layout` |
-| **Integrante 4** | Landing, Barra de 6 Categorías, Tarjetas Editoriales y Buscador (`index.php`, `assets/app.js`) | `feature/e1-catalogo-y-busqueda` |
-| **Integrante 5** | Perfil de Mentor, Horarios, Solicitud Simulada y Agenda de Estados (`perfil.php`, `agenda.php`) | `feature/e1-perfil-y-solicitud` |
+| **Leonardo** | Líder de Repositorio, Configuración Base (`bootstrap.php`) y Documentación | `feature/e1-config-y-documentacion` |
+| **Jose Pepe** | Esquema SQLite (`schema.sql`), Datos Semilla (`seed.sql`) y Repositorio PDO (`repository.php`) | `feature/e1-modelo-datos-y-semilla` |
+| **David Aram** | Autenticación con Rol Dual (`auth.php`, `login.php`, `logout.php`) y Layout Responsivo (`layout.php`) | `feature/e1-auth-y-layout` |
+| **Cutberto** | Landing, Barra de 6 Categorías, Tarjetas Editoriales y Buscador (`index.php`, `assets/app.js`) | `feature/e1-catalogo-y-busqueda` |
+| **Yuliana** | Perfil de Mentor, Horarios, Solicitud Simulada y Agenda de Estados (`perfil.php`, `agenda.php`) | `feature/e1-perfil-y-solicitud` |

@@ -232,7 +232,7 @@ render_header('Perfil de ' . $mentor['nombre'], 'inicio');
                         type="text"
                         name="nombre_solicitante"
                         required
-                        value="<?= e($usuario['nombre'] ?? 'Luis Fernando Gómez (Demo)') ?>"
+                        placeholder="<?= e($usuario['nombre'] ?? 'Marco Ramírez Silva') ?>"
                         class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-slate-50"
                     >
                 </div>
