@@ -1,74 +1,85 @@
-# Proyecto 06 — MentorMatch · Red de Asesorías e Intercambio de Habilidades
+# Proyecto 06 — MentorMatch · Asesorías de Regularización Escolar
 
-Aplicación web desarrollada para la materia de **Aplicaciones de Internet (2026)**. **MentorMatch** es una plataforma abierta a todo el público donde cualquier persona (estudiante, profesional o autodidacta) puede ofrecer o solicitar asesorías organizadas en **6 grandes categorías** (*Ciencia*, *Matemáticas*, *Tecnología y Código*, *Diseño y Creatividad*, *Negocios y Finanzas* e *Idiomas*).
-
----
-
-## 1. Problema a Resolver
-
-Las personas y estudiantes que necesitan asesoría en una materia o habilidad específica no conocen fácilmente quién domina el tema ni cuál es su disponibilidad de horario, dependiendo de anuncios dispersos sin control de agenda.
-
-## 2. Objetivo del Producto
-
-Publicar habilidades y horarios disponibles, explorar mentores mediante una barra interactiva de categorías y buscador por materia, solicitar sesiones de asesoría y gestionar confirmaciones dentro de la aplicación, permitiendo que un mismo usuario pueda asumir tanto el perfil de **mentor** como el de **estudiante/aprendiz**.
-
-## 3. Alcance Funcional Obligatorio (MVP)
-
-1. **Perfil de mentor con materia, categoría y descripción:** Cada mentor cuenta con biografía, especialidad/ocupación, experiencia, insignia automática `✓ Perfil Completo` (cuando registra biografía, al menos 1 materia y 1 horario) y lista de materias clasificadas por área y nivel.
-2. **Barra de 6 Categorías y Búsqueda por Materia:** Barra visual estilo cápsula con iconos SVG para filtrar mentores por categoría (*Ciencia*, *Matemáticas*, *Tecnología y Código*, *Diseño y Creatividad*, *Negocios y Finanzas*, *Idiomas*), sincronizada con el selector de materias, modalidad (*Virtual* / *Presencial*) y buscador instantáneo en JavaScript.
-3. **Publicación de espacios disponibles:** Bloques horarios por día de la semana, hora de inicio/fin, modalidad y lugar o sala virtual.
-4. **Solicitud, aceptación o cancelación de sesiones:** Flujo validado que impide fechas pasadas y previene conflictos de horario (doble reserva simultánea para el mismo mentor).
-5. **Listado de sesiones futuras e historial:** Vista de agenda con el ciclo completo de estados (`pendiente`, `aceptada`, `rechazada`, `cancelada`, `completada`).
+Aplicación web de la materia **Aplicaciones de Internet (2026)**. **MentorMatch** es una plataforma de clases de regularización donde se registran **mentores** y **estudiantes**, organizada en 6 categorías: *Matemáticas*, *Física y Química*, *Biología*, *Español y Humanidades*, *Inglés e Idiomas* y *Programación y Tecnología*.
 
 ---
 
-## 4. Tecnologías Utilizadas (Variante A Autorizada)
+## 1. Problema a resolver
 
-* **Frontend:** HTML5 semántico, **Tailwind CSS** (paleta editorial Índigo / Violeta / Teal), tipografía *Plus Jakarta Sans* (Google Fonts) y **JavaScript Vanilla**.
-* **Backend y Persistencia:** **PHP puro 8.x** + **SQLite 3** mediante **PDO** con consultas preparadas.
-* **Seguridad:** Sesiones nativas PHP (`$_SESSION`), `password_hash()` y `password_verify()`, protección **CSRF** en todos los formularios `POST` y escape de salida HTML con `htmlspecialchars()`.
+Los estudiantes que necesitan asesoría no conocen fácilmente quién domina una materia ni su disponibilidad.
 
----
+## 2. Objetivo del producto
 
-## 5. Instrucciones de Ejecución Local (Paso a Paso)
+Publicar materias y horarios, solicitar sesiones de asesoría y gestionar su confirmación dentro de la aplicación. Un mismo usuario puede ser mentor y estudiante.
 
-### Requisitos previos
-* Tener instalado **PHP 8.x** con la extensión **`pdo_sqlite`** habilitada:
-  ```bash
-  php -v
-  php -m
-  ```
+## 3. Alcance funcional (MVP) y estado en la Revisión 2
 
-### Pasos para levantar el proyecto
-1. Clonar el repositorio y ubicarse en la carpeta raíz del proyecto:
-   ```bash
-   git clone <URL_DEL_REPOSITORIO>
-   cd mentormatch
-   ```
-2. Iniciar el servidor integrado de PHP apuntando a la carpeta `public/`:
-   ```bash
-   php -S 127.0.0.1:8000 -t public
-   ```
-3. Abrir en el navegador:
-   ```text
-   http://127.0.0.1:8000
-   ```
-   > **Nota de auto-inicialización:** Al abrir la aplicación por primera vez, `src/bootstrap.php` crea automáticamente el archivo `storage/mentormatch.sqlite` y ejecuta `database/schema.sql` y `database/seed.sql` con 6 mentores de demostración distribuidos en las 6 categorías, 9 materias y 12 horarios disponibles.
+| Función | Dónde |
+| :--- | :--- |
+| Registro e inicio de sesión (estudiante, mentor o ambos) | `login.php` |
+| Catálogo con búsqueda y filtros por categoría, nivel y modalidad | `index.php` |
+| Perfil del mentor y solicitud de asesoría guardada en SQLite | `perfil.php` |
+| Panel del mentor: perfil, materias, horarios y solicitudes | `panel.php` |
+| Aceptar, rechazar, cancelar y completar sesiones | `agenda.php`, `panel.php`, `accion_sesion.php` |
+| Bloqueo de choques de horario (para mentor y estudiante) | `src/repository.php` |
+| Reseñas verificadas de sesiones completadas (opcionales) | `agenda.php`, `perfil.php` |
 
-### Cuentas de Demostración Incluidas
-En la pantalla de **Iniciar Sesión** (`http://127.0.0.1:8000/login.php`) puedes ingresar con un clic usando:
-* **Mentor y Estudiante (Tecnología y Código / Matemáticas):** `alejandro.morales@mentormatch.demo` / Contraseña: `demo1234`
-* **Mentora y Estudiante (Tecnología y Código):** `valeria.rios@mentormatch.demo` / Contraseña: `demo1234`
-* **Estudiante / Aprendiz:** `luis.gomez@mentormatch.demo` / Contraseña: `demo1234`
+Fuera de alcance: videollamadas, pagos y mensajería privada. La tarifa por hora es solo informativa.
 
----
+## 4. Tecnologías (Variante A)
 
-## 6. Equipo de Desarrollo (5 Integrantes)
+* **Frontend:** HTML5, Tailwind CSS (Play CDN, solo para desarrollo), fuente *Plus Jakarta Sans* y JavaScript sin frameworks.
+* **Backend y persistencia:** PHP puro 8.x y SQLite mediante PDO con consultas preparadas.
+* **Seguridad:** sesiones PHP, `password_hash()` / `password_verify()`, token CSRF en formularios `POST` y escape de salida con `htmlspecialchars()`.
+* **API externa:** no se usa. La ficha del proyecto marca las invitaciones por correo como opcionales y permite sustituirlas por confirmaciones dentro de la aplicación.
 
-| Integrante | Rol / Módulo Asignado | Rama `feature/*` (Revisión 1) |
-| :--- | :--- | :--- |
-| **Leonardo** | Líder de Repositorio, Configuración Base (`bootstrap.php`) y Documentación | `feature/e1-config-y-documentacion` |
-| **Jose Pepe** | Esquema SQLite (`schema.sql`), Datos Semilla (`seed.sql`) y Repositorio PDO (`repository.php`) | `feature/e1-modelo-datos-y-semilla` |
-| **David Aram** | Autenticación con Rol Dual (`auth.php`, `login.php`, `logout.php`) y Layout Responsivo (`layout.php`) | `feature/e1-auth-y-layout` |
-| **Cutberto** | Landing, Barra de 6 Categorías, Tarjetas Editoriales y Buscador (`index.php`, `assets/app.js`) | `feature/e1-catalogo-y-busqueda` |
-| **Yuliana** | Perfil de Mentor, Horarios, Solicitud Simulada y Agenda de Estados (`perfil.php`, `agenda.php`) | `feature/e1-perfil-y-solicitud` |
+## 5. Instalación y ejecución local
+
+Requisitos: **PHP 8.x** con la extensión `pdo_sqlite` (`php -v`, `php -m`) y un navegador con internet (para Tailwind y la fuente).
+
+```bash
+git clone <URL_DEL_REPOSITORIO>
+cd mentormatch
+git checkout develop
+php -S 127.0.0.1:8000 -t public
+```
+
+Abrir `http://127.0.0.1:8000`.
+
+**Base de datos:** en la primera visita se crea `storage/mentormatch.sqlite` con `database/schema.sql` y `database/seed.sql`. Si existe una base con el esquema de la Revisión 1, se respalda como `mentormatch.old-FECHA.sqlite` y se crea una nueva. Para reiniciar los datos de demostración, detener el servidor y borrar `storage/mentormatch.sqlite`.
+
+### Cuentas de demostración (contraseña `demo1234`)
+
+| Correo | Rol |
+| :--- | :--- |
+| `alejandro.morales@mentormatch.demo` | Mentor y estudiante |
+| `valeria.rios@mentormatch.demo` | Mentora y estudiante |
+| `diego.vazquez@mentormatch.demo` | Solo mentor |
+| `luis.gomez@mentormatch.demo` | Solo estudiante |
+
+> Los datos semilla usan fechas fijas de noviembre de 2026. Para demostrar *aceptar / rechazar*, crear una solicitud nueva con fecha futura.
+
+## 6. Pruebas
+
+* Matriz de casos manuales: [`docs/ENTREGABLE_2_PLANTILLA.md`](docs/ENTREGABLE_2_PLANTILLA.md).
+* Prueba automática de punta a punta (requiere `pip install requests`, el servidor en el puerto 8123 y una base recién creada):
+
+```bash
+php -S 127.0.0.1:8123 -t public
+python3 tests/smoke_test.py    # en otra terminal; en Windows: python tests/smoke_test.py
+```
+
+## 7. Documentación
+
+* [`docs/HISTORIAS_Y_MODELO.md`](docs/HISTORIAS_Y_MODELO.md): historias de usuario, estados y modelo de datos.
+* [`README_CAMBIOS.md`](README_CAMBIOS.md): detalle de los cambios posteriores a la Revisión 1.
+
+## 8. Equipo de desarrollo
+
+| Integrante | Módulo | Rama Revisión 1 | Rama Revisión 2 |
+| :--- | :--- | :--- | :--- |
+| **Leonardo** | Configuración base y documentación | `feature/e1-config-y-documentacion` | `feature/e2-config-y-documentacion` |
+| **Jose Pepe** | Esquema SQLite, semilla y repositorio PDO | `feature/e1-modelo-datos-y-semilla` | `feature/e2-persistencia-y-reglas` |
+| **David Aram** | Autenticación, layout y panel del mentor | `feature/e1-auth-y-layout` | `feature/e2-registro-y-panel-mentor` |
+| **Cutberto** | Portada, catálogo, filtros y JavaScript | `feature/e1-catalogo-y-busqueda` | `feature/e2-filtros-y-catalogo` |
+| **Yuliana** | Perfil, solicitudes y agenda | `feature/e1-perfil-y-solicitud` | `feature/e2-solicitudes-y-agenda` |
