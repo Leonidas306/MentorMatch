@@ -52,6 +52,59 @@ function verify_csrf(?string $token): bool
 }
 
 /**
+ * Detecta si el archivo SQLite existente es de una versión anterior del esquema.
+ */
+function esquema_bd_desactualizado(): bool
+{
+    try {
+        $tmp = new PDO('sqlite:' . DB_PATH);
+        $columnas = $tmp->query('PRAGMA table_info(usuarios)')->fetchAll(PDO::FETCH_COLUMN, 1);
+        $tmp = null; // libera el archivo (importante en Windows antes de renombrarlo)
+        return !in_array('nivel_educativo', $columnas, true);
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+/**
+ * Mensajes flash (aviso de una sola vez tras una acción). Tipos: 'exito' | 'error'.
+ * (PAQ-8) Se muestran automáticamente en render_header().
+ */
+function flash_set(string $tipo, string $mensaje): void
+{
+    $_SESSION['flash'] = ['tipo' => $tipo, 'mensaje' => $mensaje];
+}
+
+function flash_get(): ?array
+{
+    if (empty($_SESSION['flash'])) {
+        return null;
+    }
+    $flash = $_SESSION['flash'];
+    unset($_SESSION['flash']);
+    return $flash;
+}
+
+function redirigir(string $url): void
+{
+    header('Location: ' . $url);
+    exit;
+}
+
+/**
+ * Exige sesión iniciada; si no, manda al login con un aviso.
+ */
+function requerir_login(): array
+{
+    $usuario = usuario_actual();
+    if ($usuario === null) {
+        flash_set('error', 'Inicia sesión para continuar.');
+        redirigir('login.php');
+    }
+    return $usuario;
+}
+
+/**
  * Obtiene la conexión PDO a SQLite e inicializa automáticamente
  * las tablas y datos semilla si el archivo aún no existe.
  */
@@ -67,6 +120,16 @@ function db(): PDO
         mkdir($storageDir, 0775, true);
     }
 
+    // CAMBIO (PAQ-1): si la BD local tiene el esquema anterior (sin "nivel_educativo"),
+    // se respalda automáticamente como mentormatch.old-FECHA.sqlite y se crea una nueva.
+    if (file_exists(DB_PATH) && filesize(DB_PATH) > 0 && esquema_bd_desactualizado()) {
+        $respaldo = $storageDir . '/mentormatch.old-' . date('Ymd-His') . '.sqlite';
+        if (!@rename(DB_PATH, $respaldo)) {
+            http_response_code(500);
+            exit('La base de datos local tiene el esquema anterior. Cierra el servidor, borra storage/mentormatch.sqlite y vuelve a abrir la aplicación.');
+        }
+    }
+
     $needsInit = !file_exists(DB_PATH) || filesize(DB_PATH) === 0;
 
     $pdo = new PDO('sqlite:' . DB_PATH, null, null, [
@@ -76,6 +139,26 @@ function db(): PDO
     ]);
 
     $pdo->exec('PRAGMA foreign_keys = ON;');
+
+    // (PAQ-10) Si la BD ya existía pero todavía no tiene la tabla "resenas", se crea sin tocar los datos
+    // (schema.sql usa CREATE TABLE IF NOT EXISTS). Las BD nuevas traen reseñas de demostración desde seed.sql.
+    // Cambio v3: columna "nivel_otro" (texto libre cuando el usuario elige "Otro" como grado). Se agrega sin tocar datos.
+    if (!$needsInit) {
+        $colsUsuarios = $pdo->query('PRAGMA table_info(usuarios)')->fetchAll(PDO::FETCH_COLUMN, 1);
+        if (!in_array('nivel_otro', $colsUsuarios, true)) {
+            $pdo->exec("ALTER TABLE usuarios ADD COLUMN nivel_otro TEXT NOT NULL DEFAULT ''");
+        }
+    }
+
+    if (!$needsInit) {
+        $tieneResenas = (int) $pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'resenas'")->fetchColumn();
+        if ($tieneResenas === 0) {
+            $schemaSql = file_get_contents(SCHEMA_PATH);
+            if ($schemaSql !== false) {
+                $pdo->exec($schemaSql);
+            }
+        }
+    }
 
     if ($needsInit) {
         $schemaSql = file_get_contents(SCHEMA_PATH);
