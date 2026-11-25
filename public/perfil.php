@@ -19,65 +19,55 @@ if (!$mentor) {
 }
 
 $usuario = usuario_actual();
-$confirmacionSimulada = null;
+$esMiPerfil = $usuario !== null && (int) $usuario['id'] === (int) $mentor['id'];
+$soloMentor = $usuario !== null && $usuario['rol'] === 'mentor';
+$puedeSolicitar = $usuario !== null && !$esMiPerfil && !$soloMentor && !empty($mentor['disponibilidades']) && !empty($mentor['habilidades']);
 $errorSolicitud = '';
 
+// PAQ-5: la solicitud ahora SE GUARDA en la base de datos (antes solo se simulaba).
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($usuario === null) {
+        flash_set('error', 'Inicia sesión para solicitar una asesoría.');
+        redirigir('login.php');
+    }
     if (!verify_csrf($_POST['csrf_token'] ?? '')) {
         $errorSolicitud = 'Token CSRF inválido. Recarga la página e intenta nuevamente.';
+    } elseif (($_POST['accion'] ?? '') === 'guardar_ciudad') {
+        // Cambio v3: el estudiante registra su ciudad para poder agendar clases presenciales.
+        $resCiudad = actualizar_ciudad_usuario((int) $usuario['id'], (string) ($_POST['ubicacion'] ?? ''));
+        flash_set($resCiudad['exito'] ? 'exito' : 'error', $resCiudad['exito'] ? $resCiudad['mensaje'] : $resCiudad['error']);
+        redirigir('perfil.php?id=' . (int) $mentor['id'] . '#form-solicitud');
     } else {
-        $nombreSolicitante = trim((string) ($_POST['nombre_solicitante'] ?? ($usuario['nombre'] ?? '')));
-        $habilidadId = (int) ($_POST['habilidad_id'] ?? 0);
-        $disponibilidadId = (int) ($_POST['disponibilidad_id'] ?? 0);
-        $fechaSesion = trim((string) ($_POST['fecha_sesion'] ?? ''));
-        $temaEspecifico = trim((string) ($_POST['tema_especifico'] ?? ''));
-        $mensaje = trim((string) ($_POST['mensaje_estudiante'] ?? ''));
-
-        $hoy = date('Y-m-d');
-
-        if ($nombreSolicitante === '' || strlen($temaEspecifico) < 5) {
-            $errorSolicitud = 'Por favor indica tu nombre y describe el tema o duda específica (mínimo 5 caracteres).';
-        } elseif ($fechaSesion === '' || $fechaSesion < $hoy) {
-            $errorSolicitud = 'Caso crítico validado: No se aceptan fechas anteriores al momento de solicitud (' . $hoy . ').';
-        } else {
-            $materiaElegida = 'Asesoría';
-            foreach ($mentor['habilidades'] as $hab) {
-                if ((int) $hab['id'] === $habilidadId) {
-                    $materiaElegida = $hab['materia'];
-                    break;
-                }
-            }
-
-            $horarioElegido = null;
-            foreach ($mentor['disponibilidades'] as $disp) {
-                if ((int) $disp['id'] === $disponibilidadId) {
-                    $horarioElegido = $disp;
-                    break;
-                }
-            }
-
-            if (!$horarioElegido) {
-                $errorSolicitud = 'Selecciona uno de los bloques de disponibilidad válidos del mentor.';
-            } elseif (tiene_conflicto_horario((int) $mentor['id'], $fechaSesion, $horarioElegido['hora_inicio'])) {
-                $errorSolicitud = 'Caso crítico validado: El mentor ya tiene una sesión aceptada en esa misma fecha y hora (' . $fechaSesion . ' a las ' . $horarioElegido['hora_inicio'] . ').';
-            } else {
-                $confirmacionSimulada = [
-                    'folio' => 'SIM-' . strtoupper(substr(md5($mentor['id'] . $fechaSesion . $temaEspecifico), 0, 6)),
-                    'solicitante' => $nombreSolicitante,
-                    'mentor' => $mentor['nombre'],
-                    'materia' => $materiaElegida,
-                    'fecha' => $fechaSesion,
-                    'horario' => $horarioElegido['dia_semana'] . ' ' . $horarioElegido['hora_inicio'] . ' - ' . $horarioElegido['hora_fin'],
-                    'lugar' => $horarioElegido['lugar_o_enlace'],
-                    'modalidad' => $horarioElegido['modalidad'],
-                    'tema' => $temaEspecifico,
-                    'mensaje' => $mensaje,
-                    'estado_inicial' => 'pendiente',
-                ];
-            }
+        $resultado = crear_solicitud(
+            (int) $usuario['id'],
+            (int) $mentor['id'],
+            (int) ($_POST['habilidad_id'] ?? 0),
+            (int) ($_POST['disponibilidad_id'] ?? 0),
+            trim((string) ($_POST['fecha_sesion'] ?? '')),
+            (string) ($_POST['tema_especifico'] ?? ''),
+            (string) ($_POST['mensaje_estudiante'] ?? '')
+        );
+        if ($resultado['exito']) {
+            flash_set('exito', 'Solicitud enviada a ' . $mentor['nombre'] . '. Quedó en estado PENDIENTE hasta que el mentor la acepte o la rechace.');
+            redirigir('agenda.php?estado=pendientes');
         }
+        $errorSolicitud = $resultado['error'];
     }
 }
+
+// PAQ-10: reseñas verificadas (cada una viene de una sesión completada).
+$resumenResenas = obtener_resumen_resenas((int) $mentor['id']);
+$resenas = obtener_resenas_mentor((int) $mentor['id'], 20);
+
+// El primer bloque que el usuario realmente puede pedir (los presenciales exigen la misma ciudad).
+$primerBloque = null;
+foreach ($mentor['disponibilidades'] as $dispInicial) {
+    if ($dispInicial['modalidad'] !== 'Presencial' || ($usuario !== null && misma_ciudad((string) $usuario['ubicacion'], (string) $mentor['ubicacion']))) {
+        $primerBloque = $dispInicial;
+        break;
+    }
+}
+$fechaSugerida = (string) ($_POST['fecha_sesion'] ?? ($primerBloque ? proxima_fecha_para_dia($primerBloque['dia_semana']) : date('Y-m-d', strtotime('+1 day'))));
 
 render_header('Perfil de ' . $mentor['nombre'], 'inicio');
 ?>
@@ -96,7 +86,7 @@ render_header('Perfil de ' . $mentor['nombre'], 'inicio');
                 <div class="flex flex-wrap items-start justify-between gap-4">
                     <div class="flex items-center gap-4">
                         <div class="w-16 h-16 rounded-2xl bg-slate-900 text-amber-400 font-extrabold text-2xl flex items-center justify-center">
-                            <?= e(substr($mentor['nombre'], 0, 1)) ?>
+                            <?= e(recortar_texto($mentor['nombre'], 1)) ?>
                         </div>
                         <div>
                             <div class="flex items-center gap-2 flex-wrap">
@@ -108,31 +98,36 @@ render_header('Perfil de ' . $mentor['nombre'], 'inicio');
                                 <?php endif; ?>
                             </div>
                             <p class="text-sm text-slate-600 font-medium mt-0.5">
-                                💼 <?= e($mentor['ocupacion']) ?> · <?= e($mentor['experiencia']) ?>
+                                💼 <?= e(titular_publico($mentor['ocupacion'])) ?> · <?= e($mentor['experiencia']) ?>
                             </p>
                             <p class="text-xs text-slate-400 mt-0.5">
-                                Contacto: <span class="text-slate-700 font-semibold"><?= e($mentor['correo']) ?></span> · 📍 <?= e($mentor['ubicacion']) ?>
+                                📍 <?= e($mentor['ubicacion']) ?> · Modalidad: <span class="text-slate-700 font-semibold"><?= e($mentor['modalidad']) ?></span>
                             </p>
                         </div>
                     </div>
 
-                    <div class="text-right">
+                    <div class="text-right space-y-1.5">
                         <span class="inline-block px-3 py-1.5 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 font-extrabold text-sm">
-                            ★ <?= number_format((float) $mentor['calificacion_promedio'], 1) ?> / 5.0
+                            <?= $mentor['calificacion_promedio'] === null ? 'Mentor nuevo' : '★ ' . number_format((float) $mentor['calificacion_promedio'], 1) . ' / 5.0' ?>
                         </span>
-                        <p class="text-[11px] text-slate-400 mt-1 capitalize">Rol: <?= e($mentor['rol'] === 'ambos' ? 'Mentor y Estudiante' : $mentor['rol']) ?></p>
+                        <?php if ((int) $mentor['total_resenas'] > 0): ?>
+                            <p><a href="#resenas" class="text-[11px] font-bold text-indigo-700 underline"><?= (int) $mentor['total_resenas'] ?> <?= (int) $mentor['total_resenas'] === 1 ? 'reseña' : 'reseñas' ?></a></p>
+                        <?php endif; ?>
+                        <p class="text-sm font-extrabold text-emerald-700"><?= e(etiqueta_tarifa((int) $mentor['tarifa_hora'])) ?></p>
                     </div>
                 </div>
 
                 <div class="mt-6 pt-5 border-t border-slate-100">
                     <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Acerca del Mentor</h2>
-                    <p class="text-sm text-slate-700 leading-relaxed"><?= e($mentor['biografia']) ?></p>
+                    <p class="text-sm text-slate-700 leading-relaxed">
+                        <?= e(trim((string) $mentor['biografia']) !== '' ? $mentor['biografia'] : 'Este mentor aún no agrega una biografía.') ?>
+                    </p>
                 </div>
             </div>
 
             <!-- Materias y Temas que domina -->
             <div class="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs">
-                <h2 class="text-lg font-extrabold text-slate-900 mb-4">Materias y Habilidades Publicadas</h2>
+                <h2 class="text-lg font-extrabold text-slate-900 mb-4">Materias que imparte</h2>
                 <div class="space-y-3">
                     <?php foreach ($mentor['habilidades'] as $hab): ?>
                         <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80">
@@ -142,7 +137,7 @@ render_header('Perfil de ' . $mentor['nombre'], 'inicio');
                                     <span class="px-2 py-0.5 rounded bg-white border border-slate-200 text-[11px] font-semibold text-slate-600">
                                         <?= e($hab['area']) ?>
                                     </span>
-                                    <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-[11px] font-bold">
+                                    <span class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-900 text-[11px] font-bold">
                                         Nivel: <?= e($hab['nivel']) ?>
                                     </span>
                                 </div>
@@ -155,11 +150,32 @@ render_header('Perfil de ' . $mentor['nombre'], 'inicio');
                 </div>
             </div>
 
+            <!-- Reseñas de estudiantes (PAQ-10) -->
+            <div id="resenas" class="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs scroll-mt-24">
+                <h2 class="text-lg font-extrabold text-slate-900">Reseñas de estudiantes</h2>
+                <p class="text-xs text-slate-500 mt-0.5 mb-5">
+                    Solo pueden reseñar quienes tomaron una sesión que el mentor marcó como completada.
+                </p>
+                <?php if (empty($resenas)): ?>
+                    <p class="text-sm text-slate-500 bg-slate-50 rounded-xl p-4 border border-slate-200">
+                        <?= e($mentor['nombre']) ?> todavía no tiene reseñas. Las primeras aparecerán cuando sus estudiantes terminen una sesión.
+                    </p>
+                <?php else: ?>
+                    <div class="pb-5 mb-5 border-b border-slate-100">
+                        <?php render_resumen_resenas($resumenResenas); ?>
+                    </div>
+                    <?php render_lista_resenas($resenas); ?>
+                    <?php if ($resumenResenas['total_resenas'] > count($resenas)): ?>
+                        <p class="text-[11px] text-slate-400 mt-3">Se muestran las <?= count($resenas) ?> reseñas más recientes.</p>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
+
             <!-- Horarios Disponibles -->
             <div class="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs">
-                <h2 class="text-lg font-extrabold text-slate-900 mb-2">Espacios Disponibles de Asesoría</h2>
+                <h2 class="text-lg font-extrabold text-slate-900 mb-2">Horarios disponibles</h2>
                 <p class="text-xs text-slate-500 mb-4">
-                    Selecciona cualquiera de estos horarios en el formulario de solicitud para coordinar tu sesión.
+                    Elige uno de estos bloques en el formulario de solicitud para coordinar tu sesión.
                 </p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <?php foreach ($mentor['disponibilidades'] as $disp): ?>
@@ -182,13 +198,11 @@ render_header('Perfil de ' . $mentor['nombre'], 'inicio');
             </div>
         </div>
 
-        <!-- Columna derecha: Formulario de Solicitud Simulada (Entregable 1) -->
-        <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-sm sticky top-24">
-            <div class="flex items-center justify-between gap-2 pb-3 mb-4 border-b border-slate-100">
-                <div>
-                    <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-700">Revisión 1 · Flujo de Solicitud</span>
-                    <h2 class="text-lg font-extrabold text-slate-900">Solicitar Sesión de Asesoría</h2>
-                </div>
+        <!-- Columna derecha: Formulario de solicitud -->
+        <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-sm lg:sticky lg:top-24">
+            <div class="pb-3 mb-4 border-b border-slate-100">
+                <h2 class="text-lg font-extrabold text-slate-900">Solicitar una asesoría</h2>
+                <p class="text-xs text-slate-500 mt-0.5">El mentor recibirá tu solicitud y podrá aceptarla o rechazarla.</p>
             </div>
 
             <?php if ($errorSolicitud !== ''): ?>
@@ -197,123 +211,151 @@ render_header('Perfil de ' . $mentor['nombre'], 'inicio');
                 </div>
             <?php endif; ?>
 
-            <?php if ($confirmacionSimulada !== null): ?>
-                <div class="mb-5 p-5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 space-y-2.5">
-                    <div class="flex items-center justify-between">
-                        <span class="px-2.5 py-0.5 rounded-md bg-emerald-600 text-white text-[11px] font-extrabold">
-                            ✓ Solicitud Simulada Generada
-                        </span>
-                        <span class="text-xs font-mono font-bold text-emerald-800">Folio: <?= e($confirmacionSimulada['folio']) ?></span>
-                    </div>
-                    <p class="text-xs text-emerald-900 leading-relaxed">
-                        Tu solicitud para <strong><?= e($confirmacionSimulada['materia']) ?></strong> con <strong><?= e($confirmacionSimulada['mentor']) ?></strong> pasó todas las validaciones de horario y fecha.
-                    </p>
-                    <div class="text-xs bg-white/90 rounded-xl p-3 border border-emerald-200 space-y-1">
-                        <p><strong>Solicitante:</strong> <?= e($confirmacionSimulada['solicitante']) ?></p>
-                        <p><strong>Fecha y bloque:</strong> <?= e($confirmacionSimulada['fecha']) ?> (<?= e($confirmacionSimulada['horario']) ?>)</p>
-                        <p><strong>Modalidad / Lugar:</strong> <?= e($confirmacionSimulada['modalidad']) ?> · <?= e($confirmacionSimulada['lugar']) ?></p>
-                        <p><strong>Tema específico:</strong> <?= e($confirmacionSimulada['tema']) ?></p>
-                        <p><strong>Estado inicial:</strong> <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-bold uppercase text-[10px]">Pendiente de confirmación</span></p>
-                    </div>
-                    <div class="pt-1 flex items-center justify-between text-xs">
-                        <a href="agenda.php" class="font-extrabold text-emerald-800 underline">Ver flujo de estados en Agenda →</a>
+            <?php if ($usuario === null): ?>
+                <div class="p-4 rounded-xl bg-indigo-50 border border-indigo-200 text-sm text-indigo-950 space-y-3">
+                    <p>Para solicitar una asesoría con <strong><?= e($mentor['nombre']) ?></strong> necesitas una cuenta.</p>
+                    <div class="flex flex-wrap gap-2">
+                        <a href="login.php" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition">Iniciar sesión</a>
+                        <a href="login.php?modo=registro" class="px-4 py-2 rounded-xl bg-white border border-indigo-200 text-indigo-800 text-xs font-bold hover:bg-indigo-100 transition">Crear cuenta</a>
                     </div>
                 </div>
+            <?php elseif ($esMiPerfil): ?>
+                <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-700 space-y-3">
+                    <p>Este es tu perfil público. Así lo ven los estudiantes.</p>
+                    <a href="panel.php" class="inline-block px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition">Editar en Mi Panel →</a>
+                </div>
+            <?php elseif ($soloMentor): ?>
+                <div class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-950">
+                    Tu cuenta es de tipo <strong>Mentor</strong>, por eso no puedes solicitar asesorías. Si también quieres aprender, crea una cuenta con el perfil <strong>Ambas cosas</strong>.
+                </div>
+            <?php elseif (!$puedeSolicitar): ?>
+                <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-700">
+                    Este mentor aún no tiene materias u horarios publicados, así que todavía no se puede solicitar una sesión.
+                </div>
+            <?php else: ?>
+                <?php
+                // Cambio v3: las clases presenciales solo se agendan entre personas de la misma ciudad.
+                $hayPresencial = false;
+                foreach ($mentor['disponibilidades'] as $dispTmp) {
+                    if ($dispTmp['modalidad'] === 'Presencial') { $hayPresencial = true; break; }
+                }
+                $ciudadMentor = nombre_ciudad((string) $mentor['ubicacion']);
+                $ciudadUsuario = nombre_ciudad((string) $usuario['ubicacion']);
+                $mismaCiudad = misma_ciudad($ciudadUsuario, $ciudadMentor);
+                ?>
+                <?php if ($hayPresencial): ?>
+                    <?php if (!tiene_ciudad($ciudadUsuario)): ?>
+                        <div class="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-950">
+                            <p><strong>¿Quieres clase presencial?</strong> Este mentor da clases presenciales en <strong><?= e($ciudadMentor) ?></strong>. Para agendarlas necesitas registrar tu ciudad. Si prefieres, también puedes elegir un horario virtual.</p>
+                            <form method="POST" action="perfil.php?id=<?= (int) $mentor['id'] ?>" class="mt-3 flex flex-wrap gap-2">
+                                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+                                <input type="hidden" name="accion" value="guardar_ciudad">
+                                <input type="text" name="ubicacion" required minlength="2" maxlength="80" autocomplete="off" placeholder="Tu ciudad" class="flex-1 min-w-[10rem] px-3 py-2 rounded-xl border border-amber-300 text-sm bg-white">
+                                <button type="submit" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition cursor-pointer">Guardar mi ciudad</button>
+                            </form>
+                        </div>
+                    <?php elseif ($mismaCiudad): ?>
+                        <div class="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900">
+                            📍 Los dos están en <strong><?= e($ciudadMentor) ?></strong>: puedes elegir horarios presenciales o virtuales.
+                        </div>
+                    <?php else: ?>
+                        <div class="mb-4 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700">
+                            📍 Los bloques presenciales de este mentor son en <strong><?= e($ciudadMentor) ?></strong> y tu ciudad es <strong><?= e($ciudadUsuario) ?></strong>, por eso solo puedes elegir bloques virtuales.
+                        </div>
+                    <?php endif; ?>
+                <?php endif; ?>
+
+                <form id="form-solicitud" method="POST" action="perfil.php?id=<?= (int) $mentor['id'] ?>" class="space-y-4">
+                    <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+
+                    <div>
+                        <label for="select-habilidad" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                            Materia *
+                        </label>
+                        <select id="select-habilidad" name="habilidad_id" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white">
+                            <?php foreach ($mentor['habilidades'] as $hab): ?>
+                                <option value="<?= (int) $hab['id'] ?>" <?= (int) ($_POST['habilidad_id'] ?? 0) === (int) $hab['id'] ? 'selected' : '' ?>>
+                                    <?= e($hab['materia']) ?> (<?= e($hab['nivel']) ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="select-disponibilidad" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                            Horario del mentor *
+                        </label>
+                        <select id="select-disponibilidad" name="disponibilidad_id" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white">
+                            <?php foreach ($mentor['disponibilidades'] as $disp): ?>
+                                <option
+                                    value="<?= (int) $disp['id'] ?>"
+                                    data-dia="<?= e($disp['dia_semana']) ?>"
+                                    <?= $disp['modalidad'] === 'Presencial' && !$mismaCiudad ? 'disabled' : '' ?>
+                                    <?= (int) ($_POST['disponibilidad_id'] ?? 0) === (int) $disp['id'] ? 'selected' : '' ?>
+                                >
+                                    <?= e($disp['dia_semana']) ?> (<?= e($disp['hora_inicio']) ?> - <?= e($disp['hora_fin']) ?>) · <?= e($disp['modalidad']) ?><?= $disp['modalidad'] === 'Presencial' ? ' en ' . e($ciudadMentor) . (!$mismaCiudad ? ' (solo si estás en esa ciudad)' : '') : '' ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="input-fecha-sesion" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                            Fecha de la sesión *
+                        </label>
+                        <input
+                            type="date"
+                            id="input-fecha-sesion"
+                            name="fecha_sesion"
+                            required
+                            min="<?= date('Y-m-d') ?>"
+                            value="<?= e($fechaSugerida) ?>"
+                            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm"
+                        >
+                        <p class="text-[11px] text-slate-400 mt-1">
+                            La fecha debe caer en el mismo día de la semana que el horario elegido.
+                        </p>
+                    </div>
+
+                    <div>
+                        <label for="input-tema" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                            Tema o duda específica *
+                        </label>
+                        <input
+                            type="text"
+                            id="input-tema"
+                            name="tema_especifico"
+                            required
+                            minlength="5"
+                            maxlength="150"
+                            value="<?= e((string) ($_POST['tema_especifico'] ?? '')) ?>"
+                            placeholder="Ej. Derivadas por regla de la cadena para mi examen"
+                            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm"
+                        >
+                    </div>
+
+                    <div>
+                        <label for="input-mensaje" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                            Comentarios adicionales (opcional)
+                        </label>
+                        <textarea
+                            id="input-mensaje"
+                            name="mensaje_estudiante"
+                            rows="2"
+                            maxlength="500"
+                            placeholder="Cuéntale al mentor en qué vas y cuándo es tu examen..."
+                            class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm"
+                        ><?= e((string) ($_POST['mensaje_estudiante'] ?? '')) ?></textarea>
+                    </div>
+
+                    <button
+                        type="submit"
+                        class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-sm shadow-xs transition cursor-pointer"
+                    >
+                        Enviar solicitud
+                    </button>
+                </form>
             <?php endif; ?>
-
-            <form id="form-solicitud" method="POST" action="perfil.php?id=<?= (int) $mentor['id'] ?>" class="space-y-4">
-                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-
-                <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-                        Nombre de quien solicita *
-                    </label>
-                    <input
-                        type="text"
-                        name="nombre_solicitante"
-                        required
-                        placeholder="<?= e($usuario['nombre'] ?? 'Marco Ramírez Silva') ?>"
-                        class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-slate-50"
-                    >
-                </div>
-
-                <div>
-                    <label for="select-habilidad" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-                        Materia o Habilidad Requerida *
-                    </label>
-                    <select id="select-habilidad" name="habilidad_id" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white">
-                        <?php foreach ($mentor['habilidades'] as $hab): ?>
-                            <option value="<?= (int) $hab['id'] ?>"><?= e($hab['materia']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <div>
-                    <label for="select-disponibilidad" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-                        Espacio Disponible del Mentor *
-                    </label>
-                    <select id="select-disponibilidad" name="disponibilidad_id" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white">
-                        <?php foreach ($mentor['disponibilidades'] as $disp): ?>
-                            <option value="<?= (int) $disp['id'] ?>">
-                                <?= e($disp['dia_semana']) ?> (<?= e($disp['hora_inicio']) ?> - <?= e($disp['hora_fin']) ?>) · <?= e($disp['modalidad']) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <div>
-                    <label for="input-fecha-sesion" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-                        Fecha Propuesta para la Sesión *
-                    </label>
-                    <input
-                        type="date"
-                        id="input-fecha-sesion"
-                        name="fecha_sesion"
-                        required
-                        min="<?= date('Y-m-d') ?>"
-                        value="<?= date('Y-m-d', strtotime('+2 days')) ?>"
-                        class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm"
-                    >
-                    <p class="text-[11px] text-slate-400 mt-1">
-                        Validación activa: no se permiten fechas pasadas ni horarios con doble reserva.
-                    </p>
-                </div>
-
-                <div>
-                    <label for="input-tema" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-                        Tema o Duda Específica *
-                    </label>
-                    <input
-                        type="text"
-                        id="input-tema"
-                        name="tema_especifico"
-                        required
-                        minlength="5"
-                        placeholder="Ej. Práctica de estructuras de datos o revisión de portafolio"
-                        class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm"
-                    >
-                </div>
-
-                <div>
-                    <label for="input-mensaje" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-                        Comentarios Adicionales (Opcional)
-                    </label>
-                    <textarea
-                        id="input-mensaje"
-                        name="mensaje_estudiante"
-                        rows="2"
-                        placeholder="Comenta tu nivel actual o qué te gustaría lograr en la sesión..."
-                        class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm"
-                    ></textarea>
-                </div>
-
-                <button
-                    type="submit"
-                    class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-sm shadow-xs transition cursor-pointer"
-                >
-                    Simular Solicitud de Sesión
-                </button>
-            </form>
         </div>
     </div>
 </section>
