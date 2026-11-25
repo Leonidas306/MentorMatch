@@ -2,7 +2,6 @@
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/src/bootstrap.php';
 
-// PAQ-6: la agenda ahora es personal (se quitó la vista "todas las de demostración").
 $usuario = requerir_login();
 $uid = (int) $usuario['id'];
 $hoy = date('Y-m-d');
@@ -17,7 +16,6 @@ $grupos = [
     'todas' => $todas,
 ];
 
-// PAQ-10: sesiones completadas en las que YO fui el estudiante y todavía no dejé reseña.
 $sinResena = count(array_filter($todas, fn($s) => (int) $s['estudiante_id'] === $uid
     && $s['estado_efectivo'] === 'completada' && $s['resena_id'] === null));
 
@@ -34,7 +32,6 @@ if (!isset($tabs[$tabActiva])) {
 }
 
 $filas = $grupos[$tabActiva];
-// Pendientes y próximas: la más cercana primero. Historial y todas: la más reciente primero (ya viene así).
 if (in_array($tabActiva, ['pendientes', 'proximas'], true)) {
     usort($filas, fn($a, $b) => [$a['fecha_sesion'], $a['hora_inicio']] <=> [$b['fecha_sesion'], $b['hora_inicio']]);
 }
@@ -155,7 +152,6 @@ render_header('Mi Agenda', 'agenda');
                                 'rechazada', 'cancelada' => 'bg-rose-100 text-rose-900 border-rose-200',
                                 default => 'bg-slate-100 text-slate-800 border-slate-200',
                             };
-                            // La contraparte: si yo soy el mentor, es el estudiante; si no, es el mentor.
                             $contraparteNombre = $soyMentor ? $sol['estudiante_nombre'] : $sol['mentor_nombre'];
                             $contraparteDetalle = $soyMentor ? 'Estudiante · ' . $sol['estudiante_nivel'] : 'Mentor · ' . titular_publico($sol['mentor_ocupacion']);
                             $contraparteTelefono = $soyMentor ? $sol['estudiante_telefono'] : $sol['mentor_telefono'];

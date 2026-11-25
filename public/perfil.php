@@ -24,7 +24,6 @@ $soloMentor = $usuario !== null && $usuario['rol'] === 'mentor';
 $puedeSolicitar = $usuario !== null && !$esMiPerfil && !$soloMentor && !empty($mentor['disponibilidades']) && !empty($mentor['habilidades']);
 $errorSolicitud = '';
 
-// PAQ-5: la solicitud ahora SE GUARDA en la base de datos (antes solo se simulaba).
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($usuario === null) {
         flash_set('error', 'Inicia sesión para solicitar una asesoría.');
@@ -33,7 +32,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['csrf_token'] ?? '')) {
         $errorSolicitud = 'Token CSRF inválido. Recarga la página e intenta nuevamente.';
     } elseif (($_POST['accion'] ?? '') === 'guardar_ciudad') {
-        // Cambio v3: el estudiante registra su ciudad para poder agendar clases presenciales.
         $resCiudad = actualizar_ciudad_usuario((int) $usuario['id'], (string) ($_POST['ubicacion'] ?? ''));
         flash_set($resCiudad['exito'] ? 'exito' : 'error', $resCiudad['exito'] ? $resCiudad['mensaje'] : $resCiudad['error']);
         redirigir('perfil.php?id=' . (int) $mentor['id'] . '#form-solicitud');
@@ -55,11 +53,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// PAQ-10: reseñas verificadas (cada una viene de una sesión completada).
 $resumenResenas = obtener_resumen_resenas((int) $mentor['id']);
 $resenas = obtener_resenas_mentor((int) $mentor['id'], 20);
 
-// El primer bloque que el usuario realmente puede pedir (los presenciales exigen la misma ciudad).
 $primerBloque = null;
 foreach ($mentor['disponibilidades'] as $dispInicial) {
     if ($dispInicial['modalidad'] !== 'Presencial' || ($usuario !== null && misma_ciudad((string) $usuario['ubicacion'], (string) $mentor['ubicacion']))) {
@@ -234,7 +230,6 @@ render_header('Perfil de ' . $mentor['nombre'], 'inicio');
                 </div>
             <?php else: ?>
                 <?php
-                // Cambio v3: las clases presenciales solo se agendan entre personas de la misma ciudad.
                 $hayPresencial = false;
                 foreach ($mentor['disponibilidades'] as $dispTmp) {
                     if ($dispTmp['modalidad'] === 'Presencial') { $hayPresencial = true; break; }
