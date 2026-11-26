@@ -20,8 +20,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $modo = 'registro';
             $resultado = registrar_nuevo_usuario($_POST);
             if ($resultado['exito']) {
-                header('Location: index.php');
-                exit;
+                // Mentores terminan de configurar su perfil en el panel.
+                if (in_array($_SESSION['usuario_rol'] ?? '', ['mentor', 'ambos'], true)) {
+                    flash_set('exito', '¡Cuenta creada! Completa tu perfil: agrega tu biografía, tus materias y tus horarios para aparecer en el directorio.');
+                    redirigir('panel.php');
+                }
+                flash_set('exito', '¡Cuenta creada! Ya puedes buscar un mentor y solicitar tu primera asesoría.');
+                redirigir('index.php');
             }
             $error = $resultado['error'];
         } else {
@@ -37,12 +42,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Valores previos del formulario de registro.
+$prev = static fn(string $campo, string $defecto = ''): string => $modo === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST'
+    ? trim((string) ($_POST[$campo] ?? $defecto))
+    : $defecto;
+$rolPrevio = $prev('rol', 'estudiante');
+$modalidadPrevia = $prev('modalidad', 'Ambas');
+
 render_header('Iniciar Sesión y Registro', 'login');
 ?>
 
 <section class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-xs p-6 sm:p-8">
+    <div class="flex justify-center">
+        <div class="w-full max-w-xl bg-white rounded-2xl border border-slate-200 shadow-xs p-6 sm:p-8">
             <div class="flex items-center gap-2 border-b border-slate-200 pb-4 mb-6">
                 <a
                     href="login.php?modo=login"
@@ -54,7 +66,7 @@ render_header('Iniciar Sesión y Registro', 'login');
                     href="login.php?modo=registro"
                     class="px-4 py-2 rounded-xl text-sm font-extrabold transition <?= $modo === 'registro' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:text-slate-900' ?>"
                 >
-                    Crear Cuenta Abierta
+                    Crear Cuenta
                 </a>
             </div>
 
@@ -67,7 +79,7 @@ render_header('Iniciar Sesión y Registro', 'login');
             <?php if ($modo === 'login'): ?>
                 <h1 class="text-2xl font-extrabold text-slate-900">Bienvenido a MentorMatch</h1>
                 <p class="text-xs text-slate-500 mt-1 mb-6">
-                    Ingresa con tu correo electrónico o selecciona una cuenta de demostración a la derecha con un solo clic.
+                    Ingresa con tu correo electrónico y tu contraseña para continuar.
                 </p>
 
                 <form method="POST" action="login.php" class="space-y-4">
@@ -92,14 +104,19 @@ render_header('Iniciar Sesión y Registro', 'login');
                         <label for="login-password" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
                             Contraseña
                         </label>
-                        <input
-                            type="password"
-                            id="login-password"
-                            name="password"
-                            required
-                            placeholder="••••••••"
-                            class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        >
+                        <div class="relative">
+                            <input
+                                type="password"
+                                id="login-password"
+                                name="password"
+                                required
+                                placeholder="••••••••"
+                                class="w-full pl-4 pr-16 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            >
+                            <button type="button" data-toggle-password="login-password" class="absolute inset-y-0 right-2 px-2 text-[11px] font-bold text-slate-500 hover:text-indigo-700 cursor-pointer">
+                                Mostrar
+                            </button>
+                        </div>
                     </div>
 
                     <button
@@ -112,53 +129,110 @@ render_header('Iniciar Sesión y Registro', 'login');
             <?php else: ?>
                 <h1 class="text-2xl font-extrabold text-slate-900">Crea tu Cuenta en MentorMatch</h1>
                 <p class="text-xs text-slate-500 mt-1 mb-6">
-                    Abierto a estudiantes, profesionales, autodidactas y cualquier persona que quiera aprender o compartir una habilidad.
+                    Encuentra un mentor para regularizar tus materias o ofrece asesorías a otros estudiantes.
                 </p>
 
-                <form method="POST" action="login.php?modo=registro" class="space-y-4">
+                <form id="form-registro" method="POST" action="login.php?modo=registro" class="space-y-4">
                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                     <input type="hidden" name="accion" value="registro">
 
+                    <!-- Se registra primero el rol -->
+                    <fieldset>
+                        <legend class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">¿Cómo quieres participar? *</legend>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <?php
+                            $opcionesRol = [
+                                'estudiante' => ['Quiero tomar clases', 'Estudiante'],
+                                'mentor' => ['Quiero dar clases', 'Mentor'],
+                                'ambos' => ['Ambas cosas', 'Mentor y Estudiante'],
+                            ];
+                            foreach ($opcionesRol as $valor => [$titulo, $sub]):
+                            ?>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="rol" value="<?= e($valor) ?>" data-rol-radio class="peer sr-only" <?= $rolPrevio === $valor ? 'checked' : '' ?>>
+                                    <span class="block text-center px-3 py-3 rounded-xl border border-slate-300 bg-white text-slate-700 peer-checked:border-indigo-600 peer-checked:bg-indigo-50 peer-checked:text-indigo-800 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 transition">
+                                        <span class="block text-sm font-extrabold"><?= e($titulo) ?></span>
+                                        <span class="block text-[11px] font-medium opacity-70"><?= e($sub) ?></span>
+                                    </span>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    </fieldset>
+
+                    <div>
+                        <label for="reg-nombre" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Nombre Completo *</label>
+                        <input type="text" id="reg-nombre" name="nombre" required value="<?= e($prev('nombre')) ?>" placeholder="Tu nombre y apellidos" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
+                    </div>
+
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Nombre Completo *</label>
-                            <input type="text" name="nombre" required placeholder="Tu nombre y apellidos" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
+                            <label for="reg-correo" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Correo Electrónico *</label>
+                            <input type="email" id="reg-correo" name="correo" required value="<?= e($prev('correo')) ?>" placeholder="nombre@correo.com" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Ubicación o Ciudad</label>
-                            <input type="text" name="ubicacion" value="Remoto / Online" placeholder="Ej. Ciudad de México / Online" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
+                            <label for="reg-password" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Contraseña (mín. 6) *</label>
+                            <div class="relative">
+                                <input type="password" id="reg-password" name="password" required minlength="6" placeholder="••••••••" class="w-full pl-3.5 pr-16 py-2.5 rounded-xl border border-slate-300 text-sm">
+                                <button type="button" data-toggle-password="reg-password" class="absolute inset-y-0 right-2 px-2 text-[11px] font-bold text-slate-500 hover:text-indigo-700 cursor-pointer">
+                                    Mostrar
+                                </button>
+                            </div>
                         </div>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Correo Electrónico *</label>
-                            <input type="email" name="correo" required placeholder="nombre@correo.com" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
+                            <label for="reg-nivel" id="label-nivel" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                                Grado que cursas *
+                            </label>
+                            <select id="reg-nivel" name="nivel_educativo" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white">
+                                <option value="">Selecciona…</option>
+                                <?php foreach (niveles_usuario() as $nivel): ?>
+                                    <option value="<?= e($nivel) ?>" <?= $prev('nivel_educativo') === $nivel ? 'selected' : '' ?>><?= e($nivel) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <!-- Al elegir "Otro", aparece un campo nuevo para escribir el grado estudiado -->
+                            <input
+                                type="text"
+                                id="reg-nivel-otro"
+                                name="nivel_otro"
+                                maxlength="40"
+                                autocomplete="off"
+                                value="<?= e($prev('nivel_otro')) ?>"
+                                placeholder="Escribe tu grado (ej. Maestría, Técnico, Idiomas)"
+                                class="<?= $prev('nivel_educativo') === 'Otro' ? '' : 'hidden ' ?>mt-2 w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm"
+                            >
                         </div>
-                        <div>
-                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Contraseña (mín. 6 caracteres) *</label>
-                            <input type="password" name="password" required minlength="6" placeholder="••••••••" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
+
+                        <!-- Solo visible para mentores o personas con el rol de ambos -->
+                        <div id="bloque-experiencia" class="hidden">
+                            <label for="reg-anios" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Años dando clases</label>
+                            <input type="number" id="reg-anios" name="anios_experiencia" min="0" max="60" value="<?= e($prev('anios_experiencia', '0')) ?>" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div class="sm:col-span-2">
-                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Ocupación o Especialidad</label>
-                            <input type="text" name="ocupacion" value="Desarrollador / Estudiante / Autodidacta" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
-                        </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Nivel / Experiencia</label>
-                            <input type="text" name="experiencia" value="Intermedio" placeholder="Ej. 3 años / Inicial" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
+                            <label for="reg-modalidad" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Modalidad preferida</label>
+                            <select id="reg-modalidad" name="modalidad" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white">
+                                <option value="Ambas" <?= $modalidadPrevia === 'Ambas' ? 'selected' : '' ?>>Virtual y presencial</option>
+                                <option value="Virtual" <?= $modalidadPrevia === 'Virtual' ? 'selected' : '' ?>>Solo virtual (online)</option>
+                                <option value="Presencial" <?= $modalidadPrevia === 'Presencial' ? 'selected' : '' ?>>Solo presencial</option>
+                            </select>
+                        </div>
+                        <!-- Si la modalidad es "Virtual", se oculta (la ciudad solo importa para clases presenciales) -->
+                        <div id="bloque-ubicacion">
+                            <label for="reg-ubicacion" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Ciudad</label>
+                            <input type="text" id="reg-ubicacion" name="ubicacion" value="<?= e($prev('ubicacion')) ?>" placeholder="Ej. Ciudad de México" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
                         </div>
                     </div>
 
                     <div>
-                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Rol en la Plataforma</label>
-                        <select name="rol" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white">
-                            <option value="ambos">Ambos perfiles (Mentor y Estudiante/Aprendiz)</option>
-                            <option value="estudiante">Solo Estudiante / Aprendiz (Solicitar asesorías)</option>
-                            <option value="mentor">Solo Mentor (Impartir asesorías)</option>
-                        </select>
+                        <label for="reg-telefono" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                            WhatsApp o teléfono <span class="normal-case font-medium text-slate-400">(opcional)</span>
+                        </label>
+                        <input type="tel" id="reg-telefono" name="telefono" value="<?= e($prev('telefono')) ?>" placeholder="Ej. 55 1234 5678" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
+                        <p class="text-[11px] text-slate-400 mt-1">Solo se comparte con la otra persona cuando una sesión es aceptada.</p>
                     </div>
 
                     <button
@@ -171,65 +245,6 @@ render_header('Iniciar Sesión y Registro', 'login');
             <?php endif; ?>
         </div>
 
-        <div class="lg:col-span-5 bg-slate-900 text-white rounded-2xl p-6 sm:p-7 border border-slate-800 space-y-4">
-            <div class="inline-block px-2.5 py-1 rounded-md bg-amber-400/20 text-amber-300 text-xs font-bold">
-                🔑 Acceso Rápido para Demostración
-            </div>
-            <h2 class="text-lg font-extrabold">Cuentas Semilla Preconfiguradas</h2>
-            <p class="text-xs text-slate-300 leading-relaxed">
-                Haz clic en cualquiera de los botones para autocompletar el formulario y probar los distintos roles exigidos en la ficha de MentorMatch (contraseña: <code class="text-amber-300 font-bold">demo1234</code>):
-            </p>
-
-            <div class="space-y-3 pt-1">
-                <div class="p-3.5 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-between gap-2">
-                    <div>
-                        <p class="text-xs font-extrabold text-amber-300">Alejandro Morales (Rol: Ambos)</p>
-                        <p class="text-[11px] text-slate-400">alejandro.morales@mentormatch.demo</p>
-                    </div>
-                    <button
-                        type="button"
-                        onclick="autocompletarDemo('alejandro.morales@mentormatch.demo', 'demo1234')"
-                        class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs cursor-pointer"
-                    >
-                        Usar cuenta
-                    </button>
-                </div>
-
-                <div class="p-3.5 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-between gap-2">
-                    <div>
-                        <p class="text-xs font-extrabold text-emerald-300">Valeria Ríos (Rol: Ambos)</p>
-                        <p class="text-[11px] text-slate-400">valeria.rios@mentormatch.demo</p>
-                    </div>
-                    <button
-                        type="button"
-                        onclick="autocompletarDemo('valeria.rios@mentormatch.demo', 'demo1234')"
-                        class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs cursor-pointer"
-                    >
-                        Usar cuenta
-                    </button>
-                </div>
-
-                <div class="p-3.5 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-between gap-2">
-                    <div>
-                        <p class="text-xs font-extrabold text-sky-300">Luis Fernando Gómez (Rol: Estudiante)</p>
-                        <p class="text-[11px] text-slate-400">luis.gomez@mentormatch.demo</p>
-                    </div>
-                    <button
-                        type="button"
-                        onclick="autocompletarDemo('luis.gomez@mentormatch.demo', 'demo1234')"
-                        class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs cursor-pointer"
-                    >
-                        Usar cuenta
-                    </button>
-                </div>
-            </div>
-
-            <div class="pt-3 border-t border-slate-800 text-[11px] text-slate-400 space-y-1">
-                <p>🔒 <strong>Seguridad implementada:</strong></p>
-                <p>• Hash con <code class="text-slate-200">password_hash()</code> y <code class="text-slate-200">password_verify()</code>.</p>
-                <p>• Consultas preparadas PDO y token CSRF en formularios.</p>
-            </div>
-        </div>
     </div>
 </section>
 

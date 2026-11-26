@@ -14,7 +14,7 @@ function usuario_actual(): ?array
     }
 
     $stmt = db()->prepare("
-        SELECT id, nombre, correo, ocupacion, experiencia, rol, biografia, modalidad, ubicacion
+        SELECT id, nombre, correo, ocupacion, experiencia, nivel_educativo, nivel_otro, rol, biografia, modalidad, ubicacion, telefono, tarifa_hora
         FROM usuarios
         WHERE id = :id
         LIMIT 1
@@ -39,7 +39,7 @@ function iniciar_sesion_usuario(string $correo, string $password): array
     $usuario = $stmt->fetch();
 
     if (!$usuario || !password_verify($password, $usuario['password_hash'])) {
-        return ['exito' => false, 'error' => 'Credenciales incorrectas. Verifica tu correo o usa una cuenta demo.'];
+        return ['exito' => false, 'error' => 'Credenciales incorrectas. Verifica tu correo y tu contraseña.'];
     }
 
     session_regenerate_id(true);
@@ -51,19 +51,21 @@ function iniciar_sesion_usuario(string $correo, string $password): array
 }
 
 /**
- * Registra un nuevo usuario en la base de datos y abre su sesión automáticamente
+ * Registra un nuevo usuario en la base de datos y abre su sesión automáticamente.
+ * La biografía y las materias/horarios se completan después en "Mi Panel".
  */
 function registrar_nuevo_usuario(array $datos): array
 {
     $nombre = trim((string) ($datos['nombre'] ?? ''));
     $correo = strtolower(trim((string) ($datos['correo'] ?? '')));
-    $ocupacion = trim((string) ($datos['ocupacion'] ?? 'Profesional / Estudiante / Autodidacta'));
-    $experiencia = trim((string) ($datos['experiencia'] ?? 'Intermedio'));
-    $ubicacion = trim((string) ($datos['ubicacion'] ?? 'Remoto / Online'));
-    $rol = trim((string) ($datos['rol'] ?? 'ambos'));
+    $rol = trim((string) ($datos['rol'] ?? 'estudiante'));
     $password = (string) ($datos['password'] ?? '');
+    $nivel = trim((string) ($datos['nivel_educativo'] ?? ''));
+    $modalidad = trim((string) ($datos['modalidad'] ?? 'Ambas'));
+    $ubicacion = trim((string) ($datos['ubicacion'] ?? ''));
+    $telefono = normalizar_telefono((string) ($datos['telefono'] ?? ''));
 
-    if (strlen($nombre) < 4) {
+    if (longitud_texto($nombre) < 4) {
         return ['exito' => false, 'error' => 'El nombre completo debe tener al menos 4 caracteres.'];
     }
     if (!filter_var($correo, FILTER_VALIDATE_EMAIL)) {
@@ -73,35 +75,70 @@ function registrar_nuevo_usuario(array $datos): array
         return ['exito' => false, 'error' => 'La contraseña debe tener al menos 6 caracteres.'];
     }
     if (!in_array($rol, ['estudiante', 'mentor', 'ambos'], true)) {
-        $rol = 'ambos';
+        return ['exito' => false, 'error' => 'Elige cómo vas a participar en la plataforma.'];
     }
-    if ($ocupacion === '') {
-        $ocupacion = 'Entusiasta del aprendizaje';
+    if (!in_array($nivel, niveles_usuario(), true)) {
+        return ['exito' => false, 'error' => 'Selecciona tu nivel educativo.'];
     }
-    if ($ubicacion === '') {
+    // al elegir "Otro" debe escribir cuál es (texto libre).
+    $nivelOtro = '';
+    if ($nivel === 'Otro') {
+        $nivelOtro = trim((string) ($datos['nivel_otro'] ?? ''));
+        if (longitud_texto($nivelOtro) < 2 || longitud_texto($nivelOtro) > 40) {
+            return ['exito' => false, 'error' => 'Escribe cuál es tu grado o nivel 
+            educativo (entre 2 y 40 caracteres).'];
+        }
+    }
+    if (!in_array($modalidad, ['Presencial', 'Virtual', 'Ambas'], true)) {
+        $modalidad = 'Ambas';
+    }
+    if ($telefono === null) {
+        return ['exito' => false, 'error' => 'El teléfono solo puede contener números, 
+        espacios, +, paréntesis y guiones (8 a 20 caracteres).'];
+    }
+    if ($modalidad === 'Virtual' || $ubicacion === '') {
         $ubicacion = 'Remoto / Online';
+    }
+
+    if ($rol === 'estudiante') {
+        $experiencia = 'Estudiante';
+        $titular = 'Estudiante de ' . etiqueta_nivel($nivel, $nivelOtro);
+    } else {
+        $anios = (int) ($datos['anios_experiencia'] ?? 0);
+        if ($anios < 0 || $anios > 60) {
+            return ['exito' => false, 'error' => 'Los años de experiencia dando clases 
+            deben estar entre 0 y 60.'];
+        }
+        $experiencia = formatear_experiencia($anios);
+        $titular = ''; // Mentor escribe su propio titulo en "Mi Panel"
     }
 
     // Verificar duplicados de correo
     $stmtCheck = db()->prepare("SELECT COUNT(*) FROM usuarios WHERE LOWER(correo) = :correo");
     $stmtCheck->execute([':correo' => $correo]);
     if ((int) $stmtCheck->fetchColumn() > 0) {
-        return ['exito' => false, 'error' => 'Ya existe una cuenta registrada con ese correo electrónico.'];
+        return ['exito' => false, 'error' => 'Ya existe una cuenta registrada con 
+        ese correo electrónico.'];
     }
 
     $hash = password_hash($password, PASSWORD_DEFAULT);
     $stmtInsert = db()->prepare("
-        INSERT INTO usuarios (nombre, correo, ocupacion, experiencia, rol, biografia, modalidad, ubicacion, password_hash)
-        VALUES (:nombre, :correo, :ocupacion, :experiencia, :rol, :bio, 'Ambas', :ubicacion, :hash)
+        INSERT INTO usuarios (nombre, correo, ocupacion, experiencia, nivel_educativo, 
+        'nivel_otro, rol, biografia, modalidad, ubicacion, telefono, password_hash)
+        VALUES (:nombre, :correo, :ocupacion, :experiencia, :nivel, :nivel_otro, :rol, 
+        '', :modalidad, :ubicacion, :telefono, :hash)
     ");
     $stmtInsert->execute([
         ':nombre' => $nombre,
         ':correo' => $correo,
-        ':ocupacion' => $ocupacion,
+        ':ocupacion' => $titular,
         ':experiencia' => $experiencia,
+        ':nivel' => $nivel,
+        ':nivel_otro' => $nivelOtro,
         ':rol' => $rol,
-        ':bio' => 'Integrante de la comunidad abierta de aprendizaje en MentorMatch.',
-        ':ubicacion' => $ubicacion,
+        ':modalidad' => $modalidad,
+        ':ubicacion' => recortar_texto($ubicacion, 80),
+        ':telefono' => $telefono,
         ':hash' => $hash,
     ]);
 
